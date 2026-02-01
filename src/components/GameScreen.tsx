@@ -134,7 +134,7 @@ export default function GameScreen() {
                   value={guessedDistance}
                   onChange={setGuessedDistance}
                   min={0.5}
-                  max={50000}
+                  max={300000}
                   unit="m"
                   icon="📏"
                 />
@@ -206,6 +206,19 @@ export default function GameScreen() {
                     </span>
                   </div>
                 </motion.div>
+
+                {/* Skip to next button during reveal */}
+                <motion.button
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.5 }}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleRevealComplete}
+                  className="mt-4 px-6 py-2 bg-gray-700/50 hover:bg-gray-600/50 border border-gray-600 rounded-lg text-gray-300 hover:text-white transition-all text-sm"
+                >
+                  結果を見る →
+                </motion.button>
               </div>
             </motion.div>
           )}
