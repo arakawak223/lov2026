@@ -482,7 +482,7 @@ const LANDMARK_STAGES: StageData[] = [
     question: '橋の両端にある塔のうち、奥の塔までの距離は？',
     targetPosition: { x: 0.72, y: 0.42 },
     correctDistance: 1580,
-    hint: '塔の高さは227m、塔間の距離は1,280m。マリンヘッドランズから撮影',
+    hint: '塔の高さは227m。手前の塔までは約300m',
     collectionName: 'ゴールデンゲートブリッジ（サンフランシスコ）',
     difficulty: 'hard',
     landmark: 'ゴールデンゲートブリッジ',
