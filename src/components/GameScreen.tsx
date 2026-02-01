@@ -5,25 +5,30 @@ import GuessSlider from './GuessSlider'
 import RevealScene from './RevealScene'
 import ResultDisplay from './ResultDisplay'
 import ZoomableImage from './ZoomableImage'
+import PrecisionScene, { PRECISION_SCENARIOS } from './PrecisionScene'
 
 export default function GameScreen() {
   const {
     currentStage,
     guessedDistance,
-    guessedHeight,
     setGuessedDistance,
-    setGuessedHeight,
     submitAnswer,
     phase,
     setPhase,
     result,
     nextStage,
+    skipStage,
     totalScore,
   } = useGameStore()
 
   const [showHint, setShowHint] = useState(false)
 
   if (!currentStage) return null
+
+  // Check if this is a precision training stage
+  const precisionScenario = currentStage.category === 'precision'
+    ? PRECISION_SCENARIOS.find(s => s.id === currentStage.scenarioId)
+    : null
 
   const handleSubmit = () => {
     submitAnswer()
@@ -66,20 +71,32 @@ export default function GameScreen() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
             >
-              {/* Image Display with Zoom */}
+              {/* Image/3D Scene Display */}
               <div className="mb-6">
-                <ZoomableImage
-                  src={currentStage.image}
-                  alt="Question"
-                  targetPosition={currentStage.targetPosition}
-                >
-                  {/* Question Overlay */}
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4 z-10">
-                    <p className="text-xl md:text-2xl font-bold text-white">
-                      🎯 {currentStage.question}
-                    </p>
+                {precisionScenario ? (
+                  <div className="relative">
+                    <PrecisionScene scenario={precisionScenario} showTarget={true} />
+                    {/* Question Overlay */}
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4 rounded-b-2xl">
+                      <p className="text-xl md:text-2xl font-bold text-white">
+                        🎯 {currentStage.question}
+                      </p>
+                    </div>
                   </div>
-                </ZoomableImage>
+                ) : (
+                  <ZoomableImage
+                    src={currentStage.image}
+                    alt="Question"
+                    targetPosition={currentStage.targetPosition}
+                  >
+                    {/* Question Overlay */}
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4 z-10">
+                      <p className="text-xl md:text-2xl font-bold text-white">
+                        🎯 {currentStage.question}
+                      </p>
+                    </div>
+                  </ZoomableImage>
+                )}
               </div>
 
               {/* Hint */}
@@ -110,40 +127,39 @@ export default function GameScreen() {
                 </motion.div>
               )}
 
-              {/* Sliders */}
-              <div className="space-y-4 mb-6">
+              {/* 距離スライダー */}
+              <div className="mb-6">
                 <GuessSlider
                   label="距離"
                   value={guessedDistance}
                   onChange={setGuessedDistance}
                   min={0.5}
-                  max={5000}
+                  max={50000}
                   unit="m"
                   icon="📏"
                 />
-
-                {currentStage.correctHeight && (
-                  <GuessSlider
-                    label="高さ"
-                    value={guessedHeight}
-                    onChange={setGuessedHeight}
-                    min={0.1}
-                    max={5000}
-                    unit="m"
-                    icon="📐"
-                  />
-                )}
               </div>
 
-              {/* Submit Button */}
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={handleSubmit}
-                className="w-full py-4 bg-gradient-to-r from-green-600 to-emerald-500 hover:from-green-500 hover:to-emerald-400 rounded-xl font-bold text-xl shadow-lg shadow-green-500/25 transition-all"
-              >
-                回答する！
-              </motion.button>
+              {/* Buttons */}
+              <div className="space-y-3">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleSubmit}
+                  className="w-full py-4 bg-gradient-to-r from-green-600 to-emerald-500 hover:from-green-500 hover:to-emerald-400 rounded-xl font-bold text-xl shadow-lg shadow-green-500/25 transition-all"
+                >
+                  回答する！
+                </motion.button>
+
+                <motion.button
+                  whileHover={{ scale: 1.01 }}
+                  whileTap={{ scale: 0.99 }}
+                  onClick={skipStage}
+                  className="w-full py-3 bg-gray-700/50 hover:bg-gray-600/50 border border-gray-600 rounded-xl text-gray-300 hover:text-white transition-all"
+                >
+                  スキップ →
+                </motion.button>
+              </div>
             </motion.div>
           )}
 
@@ -167,8 +183,6 @@ export default function GameScreen() {
                 imageUrl={currentStage.image}
                 correctDistance={currentStage.correctDistance}
                 guessedDistance={guessedDistance}
-                correctHeight={currentStage.correctHeight}
-                guessedHeight={guessedHeight}
                 onComplete={handleRevealComplete}
               />
 

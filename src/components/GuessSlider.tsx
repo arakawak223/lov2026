@@ -85,6 +85,7 @@ export default function GuessSlider({
 
       <div className="flex justify-center gap-1.5 flex-wrap">
         {[
+          { delta: -1000, label: '-1000' },
           { delta: -100, label: '-100' },
           { delta: -10, label: '-10' },
           { delta: -1, label: '-1' },
@@ -93,6 +94,7 @@ export default function GuessSlider({
           { delta: 1, label: '+1' },
           { delta: 10, label: '+10' },
           { delta: 100, label: '+100' },
+          { delta: 1000, label: '+1000' },
         ].map((btn) => (
           <button
             key={btn.label}
