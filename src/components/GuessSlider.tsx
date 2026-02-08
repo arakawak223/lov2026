@@ -87,14 +87,14 @@ export default function GuessSlider({
         {[
           { delta: -100000, label: '-100km' },
           { delta: -10000, label: '-10km' },
-          { delta: -1000, label: '-1000' },
+          { delta: -1000, label: '-1km' },
           { delta: -100, label: '-100' },
           { delta: -10, label: '-10' },
           { delta: -1, label: '-1' },
           { delta: 1, label: '+1' },
           { delta: 10, label: '+10' },
           { delta: 100, label: '+100' },
-          { delta: 1000, label: '+1000' },
+          { delta: 1000, label: '+1km' },
           { delta: 10000, label: '+10km' },
           { delta: 100000, label: '+100km' },
         ].map((btn) => (

@@ -6,6 +6,7 @@ import RevealScene from './RevealScene'
 import ResultDisplay from './ResultDisplay'
 import ZoomableImage from './ZoomableImage'
 import PrecisionScene, { PRECISION_SCENARIOS } from './PrecisionScene'
+import IllusionScene from './IllusionScene'
 
 export default function GameScreen() {
   const {
@@ -26,9 +27,12 @@ export default function GameScreen() {
   if (!currentStage) return null
 
   // Check if this is a precision training stage
-  const precisionScenario = currentStage.category === 'precision'
+  const precisionScenario = currentStage.scenarioId
     ? PRECISION_SCENARIOS.find(s => s.id === currentStage.scenarioId)
     : null
+
+  // Check if this is an illusion stage
+  const isIllusionStage = currentStage.category === 'illusion' && currentStage.illusionType
 
   const handleSubmit = () => {
     submitAnswer()
@@ -73,7 +77,22 @@ export default function GameScreen() {
             >
               {/* Image/3D Scene Display */}
               <div className="mb-6">
-                {precisionScenario ? (
+                {isIllusionStage ? (
+                  <div className="relative">
+                    <IllusionScene
+                      illusionType={currentStage.illusionType!}
+                      mode="play"
+                      targetDistance={currentStage.correctDistance}
+                      showRuler={currentStage.showRuler}
+                      seed={currentStage.id.length * 997 + currentStage.correctDistance}
+                    />
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4 rounded-b-2xl">
+                      <p className="text-xl md:text-2xl font-bold text-white">
+                        🎯 {currentStage.question}
+                      </p>
+                    </div>
+                  </div>
+                ) : precisionScenario ? (
                   <div className="relative">
                     <PrecisionScene scenario={precisionScenario} showTarget={true} />
                     {/* Question Overlay */}
@@ -179,12 +198,23 @@ export default function GameScreen() {
                 </p>
               </div>
 
-              <RevealScene
-                imageUrl={currentStage.image}
-                correctDistance={currentStage.correctDistance}
-                guessedDistance={guessedDistance}
-                onComplete={handleRevealComplete}
-              />
+              {isIllusionStage ? (
+                <IllusionScene
+                  illusionType={currentStage.illusionType!}
+                  mode="reveal"
+                  guessedDistance={guessedDistance}
+                  onComplete={handleRevealComplete}
+                  targetDistance={currentStage.correctDistance}
+                  seed={currentStage.id.length * 997 + currentStage.correctDistance}
+                />
+              ) : (
+                <RevealScene
+                  imageUrl={currentStage.image}
+                  correctDistance={currentStage.correctDistance}
+                  guessedDistance={guessedDistance}
+                  onComplete={handleRevealComplete}
+                />
+              )}
 
               <div className="mt-4 text-center">
                 <motion.div

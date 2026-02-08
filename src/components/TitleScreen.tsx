@@ -1,10 +1,16 @@
 import { motion } from 'framer-motion'
+import type { GameCategory } from '../store/gameStore'
+import { CATEGORY_INFO } from '../store/gameStore'
 
 interface TitleScreenProps {
-  onStart: () => void
+  onSelectCourse: (category: GameCategory) => void
+  onOpenRanking: () => void
+  onOpenCollection: () => void
 }
 
-export default function TitleScreen({ onStart }: TitleScreenProps) {
+const COURSES: GameCategory[] = ['fuji', 'landmark', 'daily', 'illusion']
+
+export default function TitleScreen({ onSelectCourse, onOpenRanking, onOpenCollection }: TitleScreenProps) {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4">
       <motion.div
@@ -47,46 +53,46 @@ export default function TitleScreen({ onStart }: TitleScreenProps) {
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8, delay: 0.3 }}
-        className="space-y-4 w-full max-w-xs"
+        className="space-y-3 w-full max-w-sm"
       >
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={onStart}
-          className="w-full py-4 px-8 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 rounded-xl font-bold text-lg shadow-lg shadow-blue-500/25 transition-all animate-pulse-glow"
-        >
-          ゲームスタート
-        </motion.button>
+        <p className="text-center text-gray-400 text-sm mb-1">コースを選択</p>
 
-        <div className="grid grid-cols-2 gap-3">
-          <button className="py-3 px-4 bg-gray-800 hover:bg-gray-700 rounded-xl text-gray-300 transition-colors text-sm">
+        {COURSES.map((cat, i) => {
+          const info = CATEGORY_INFO[cat]
+          return (
+            <motion.button
+              key={cat}
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.4 + i * 0.1 }}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => onSelectCourse(cat)}
+              className="w-full flex items-center gap-4 py-4 px-5 bg-gray-800/80 hover:bg-gray-700/80 border border-gray-700 hover:border-gray-600 rounded-xl transition-all text-left"
+            >
+              <span className="text-3xl">{info.icon}</span>
+              <div className="flex-1 min-w-0">
+                <div className="font-bold text-white text-lg">{info.name}</div>
+                <div className="text-gray-400 text-xs">{info.description}</div>
+              </div>
+              <span className="text-gray-500 text-xs whitespace-nowrap">{info.stageCount}問</span>
+            </motion.button>
+          )
+        })}
+
+        <div className="pt-2 grid grid-cols-2 gap-3">
+          <button
+            onClick={onOpenCollection}
+            className="py-3 px-4 bg-gray-800 hover:bg-gray-700 rounded-xl text-gray-300 transition-colors text-sm"
+          >
             📚 図鑑
           </button>
-          <button className="py-3 px-4 bg-gray-800 hover:bg-gray-700 rounded-xl text-gray-300 transition-colors text-sm">
+          <button
+            onClick={onOpenRanking}
+            className="py-3 px-4 bg-gray-800 hover:bg-gray-700 rounded-xl text-gray-300 transition-colors text-sm"
+          >
             🏆 ランキング
           </button>
-        </div>
-      </motion.div>
-
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 1 }}
-        className="mt-12 text-center"
-      >
-        <div className="flex justify-center gap-6 text-gray-600 text-sm">
-          <div className="flex items-center gap-2">
-            <span className="text-green-500">●</span>
-            <span>5 レベル</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-blue-500">●</span>
-            <span>50+ ステージ</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-purple-500">●</span>
-            <span>錯覚の罠</span>
-          </div>
         </div>
       </motion.div>
 
@@ -96,7 +102,7 @@ export default function TitleScreen({ onStart }: TitleScreenProps) {
         transition={{ delay: 1.5 }}
         className="absolute bottom-4 text-gray-600 text-xs"
       >
-        Prototype v0.1 - 3D演出技術検証
+        Prototype v0.1
       </motion.p>
     </div>
   )

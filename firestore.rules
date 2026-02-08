@@ -1,0 +1,25 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /rankings/{docId} {
+      // Anyone can read
+      allow read: if true;
+
+      // Create only with validation, no update/delete
+      allow create: if
+        request.resource.data.playerName is string &&
+        request.resource.data.playerName.size() >= 1 &&
+        request.resource.data.playerName.size() <= 12 &&
+        request.resource.data.stageId is string &&
+        request.resource.data.stageName is string &&
+        request.resource.data.score is number &&
+        request.resource.data.score >= 0 &&
+        request.resource.data.score <= 100 &&
+        request.resource.data.distanceError is number &&
+        request.resource.data.country is string;
+
+      allow update, delete: if false;
+    }
+  }
+}
