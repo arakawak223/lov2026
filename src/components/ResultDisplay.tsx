@@ -66,51 +66,68 @@ export default function ResultDisplay({
           </span>
         </motion.div>
 
-        <div className="border-t border-gray-700 pt-4 space-y-3">
-          <motion.div
-            initial={{ x: -20, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ delay: 0.3 }}
-            className="flex justify-between"
-          >
-            <span className="text-gray-400">正解（距離）</span>
-            <span className="text-green-400 font-semibold">
-              {result.correctDistance.toFixed(1)} m
-            </span>
-          </motion.div>
-
-          <motion.div
-            initial={{ x: -20, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ delay: 0.35 }}
-            className="flex justify-between"
-          >
-            <span className="text-gray-400">あなたの回答</span>
-            <span className="text-blue-400 font-semibold">
-              {result.guessedDistance.toFixed(1)} m
-            </span>
-          </motion.div>
-
-          <motion.div
-            initial={{ x: -20, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ delay: 0.4 }}
-            className="flex justify-between"
-          >
-            <span className="text-gray-400">誤差</span>
-            <span
-              className={`font-semibold ${
-                result.distanceError <= 5
-                  ? 'text-green-400'
-                  : result.distanceError <= 20
-                  ? 'text-yellow-400'
-                  : 'text-red-400'
-              }`}
+        {(result.distanceError === 0 || result.distanceError === 100) && result.correctDistance === 0 ? (
+          /* Binary scoring (visual quiz / illusion) — simplified result */
+          <div className="border-t border-gray-700 pt-4">
+            <motion.div
+              initial={{ x: -20, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              transition={{ delay: 0.3 }}
+              className="flex justify-between items-center"
             >
-              {result.distanceError.toFixed(1)}%
-            </span>
-          </motion.div>
-        </div>
+              <span className="text-gray-400">判定</span>
+              <span className={`font-bold text-lg ${result.score === 100 ? 'text-green-400' : 'text-red-400'}`}>
+                {result.score === 100 ? '⭕ 正解' : '❌ 不正解'}
+              </span>
+            </motion.div>
+          </div>
+        ) : (
+          <div className="border-t border-gray-700 pt-4 space-y-3">
+            <motion.div
+              initial={{ x: -20, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              transition={{ delay: 0.3 }}
+              className="flex justify-between"
+            >
+              <span className="text-gray-400">正解（距離）</span>
+              <span className="text-green-400 font-semibold">
+                {result.correctDistance.toFixed(1)} m
+              </span>
+            </motion.div>
+
+            <motion.div
+              initial={{ x: -20, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              transition={{ delay: 0.35 }}
+              className="flex justify-between"
+            >
+              <span className="text-gray-400">あなたの回答</span>
+              <span className="text-blue-400 font-semibold">
+                {result.guessedDistance.toFixed(1)} m
+              </span>
+            </motion.div>
+
+            <motion.div
+              initial={{ x: -20, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              transition={{ delay: 0.4 }}
+              className="flex justify-between"
+            >
+              <span className="text-gray-400">誤差</span>
+              <span
+                className={`font-semibold ${
+                  result.distanceError <= 5
+                    ? 'text-green-400'
+                    : result.distanceError <= 20
+                    ? 'text-yellow-400'
+                    : 'text-red-400'
+                }`}
+              >
+                {result.distanceError.toFixed(1)}%
+              </span>
+            </motion.div>
+          </div>
+        )}
 
         {result.correctHeight && (
           <div className="border-t border-gray-700 pt-4 space-y-3">

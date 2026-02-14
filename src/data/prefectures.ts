@@ -244,6 +244,7 @@ export const STAGE_COUNTRY_MAP: Record<string, string> = {
   'big-buddha-kamakura': '日本',
   'petronas-towers': 'マレーシア',
   'christ-redeemer-far': 'ブラジル',
+  'piazza-san-marco': 'イタリア',
 }
 
 // ステージがある都道府県のみ返す

@@ -8,7 +8,7 @@ interface TitleScreenProps {
   onOpenCollection: () => void
 }
 
-const COURSES: GameCategory[] = ['fuji', 'landmark', 'daily', 'illusion']
+const COURSES: GameCategory[] = ['fuji', 'landmark', 'daily', 'illusion', 'visual']
 
 export default function TitleScreen({ onSelectCourse, onOpenRanking, onOpenCollection }: TitleScreenProps) {
   return (

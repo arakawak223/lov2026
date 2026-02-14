@@ -5,6 +5,7 @@ import {
   LANDMARK_STAGES,
   DAILY_STAGES,
   ILLUSION_STAGES,
+  VISUAL_STAGES,
   CATEGORY_INFO,
   useGameStore,
 } from '../store/gameStore'
@@ -19,6 +20,7 @@ const TABS: { id: GameCategory; label: string; icon: string; stages: StageData[]
   { id: 'landmark', label: CATEGORY_INFO.landmark.name, icon: CATEGORY_INFO.landmark.icon, stages: LANDMARK_STAGES },
   { id: 'daily', label: CATEGORY_INFO.daily.name, icon: CATEGORY_INFO.daily.icon, stages: DAILY_STAGES },
   { id: 'illusion', label: CATEGORY_INFO.illusion.name, icon: CATEGORY_INFO.illusion.icon, stages: ILLUSION_STAGES },
+  { id: 'visual', label: CATEGORY_INFO.visual.name, icon: CATEGORY_INFO.visual.icon, stages: VISUAL_STAGES },
 ]
 
 function formatDistance(m: number): string {
@@ -68,17 +70,17 @@ export default function CollectionScreen({ onBack }: CollectionScreenProps) {
       </motion.div>
 
       {/* Tabs */}
-      <div className="flex border-b border-gray-800">
+      <div className="flex border-b border-gray-800 overflow-x-auto">
         {TABS.map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`flex-1 py-3 text-center transition-colors relative ${
+            className={`flex-1 min-w-0 py-3 text-center transition-colors relative ${
               tab === t.id ? 'text-white' : 'text-gray-500 hover:text-gray-300'
             }`}
           >
-            <span className="text-lg">{t.icon}</span>
-            <span className="ml-1 text-sm font-medium">{t.label}</span>
+            <span className="text-base">{t.icon}</span>
+            <span className="ml-0.5 text-xs font-medium">{t.label}</span>
             {tab === t.id && (
               <motion.div
                 layoutId="collection-tab"
@@ -125,7 +127,7 @@ export default function CollectionScreen({ onBack }: CollectionScreenProps) {
                   {played ? (
                     stage.image === '' ? (
                       <div className="w-full h-full flex items-center justify-center text-2xl bg-gray-700">
-                        🌀
+                        {stage.category === 'visual' ? '🔮' : '🌀'}
                       </div>
                     ) : (
                       <img

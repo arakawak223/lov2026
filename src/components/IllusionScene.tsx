@@ -194,8 +194,10 @@ function generateBuildings(config: IllusionConfig, seed?: number): BuildingData[
     const depth = 8 + rand() * 12
 
     // For occlusion: place some buildings closer to center to partially block target
+    // but ensure a gap so the red building is always at least partially visible
     if (config.illusionType === 'occlusion' && i < 5) {
-      x = side * (3 + rand() * 10)
+      const minGap = 3 // inner edge must be at least 3m from center
+      x = side * (width / 2 + minGap + rand() * 8)
     }
 
     buildings.push({
@@ -221,13 +223,15 @@ function Building({ data }: { data: BuildingData }) {
 }
 
 function TargetBuilding({ config }: { config: IllusionConfig }) {
+  // Slightly boosted emissive for shadow so it's visible but still dark
+  const emissiveIntensity = config.illusionType === 'shadow' ? 0.55 : 0.3
   return (
     <mesh position={[0, config.targetHeight / 2, -config.targetDistance]}>
       <boxGeometry args={[config.targetWidth, config.targetHeight, config.targetWidth * 0.8]} />
       <meshStandardMaterial
         color="#ef4444"
         emissive="#ff0000"
-        emissiveIntensity={0.3}
+        emissiveIntensity={emissiveIntensity}
       />
     </mesh>
   )
@@ -486,6 +490,11 @@ interface IllusionSceneProps {
   targetDistance?: number
   showRuler?: boolean
   seed?: number
+  compact?: boolean
+  /** Reference distance for normalizing the red building's apparent size.
+   *  When set, the building is physically scaled so its on-screen size
+   *  matches what it would look like at this reference distance. */
+  normalizeToDistance?: number
 }
 
 export default function IllusionScene({
@@ -496,15 +505,56 @@ export default function IllusionScene({
   targetDistance,
   showRuler,
   seed,
+  compact,
+  normalizeToDistance,
 }: IllusionSceneProps) {
   const baseConfig = ILLUSION_CONFIGS[illusionType]
-  // Override targetDistance from props when provided
-  const config = targetDistance != null
-    ? { ...baseConfig, targetDistance }
-    : baseConfig
+  // Override targetDistance; adapt fog per illusion type to keep the effect strong
+  // while ensuring the red building stays barely visible
+  const config = useMemo(() => {
+    if (targetDistance == null) return baseConfig
+    const dist = targetDistance
+
+    // Normalize building size so apparent (angular) size is consistent
+    // apparent_size ∝ physical_size / distance
+    // To match refDist: scale = dist / refDist
+    const refDist = normalizeToDistance ?? baseConfig.targetDistance
+    const sizeScale = dist / refDist
+    const tgtHeight = baseConfig.targetHeight * sizeScale
+    const tgtWidth = baseConfig.targetWidth * sizeScale
+
+    if (illusionType === 'atmospheric') {
+      return {
+        ...baseConfig,
+        targetDistance: dist,
+        targetHeight: tgtHeight,
+        targetWidth: tgtWidth,
+        fogNear: dist * 0.15,
+        fogFar: dist * 1.15,
+      }
+    }
+    if (illusionType === 'shadow') {
+      return {
+        ...baseConfig,
+        targetDistance: dist,
+        targetHeight: tgtHeight,
+        targetWidth: tgtWidth,
+        fogFar: Math.max(baseConfig.fogFar, dist * 1.3),
+      }
+    }
+    const fogScale = dist / baseConfig.targetDistance
+    return {
+      ...baseConfig,
+      targetDistance: dist,
+      targetHeight: tgtHeight,
+      targetWidth: tgtWidth,
+      fogNear: baseConfig.fogNear * fogScale,
+      fogFar: Math.max(baseConfig.fogFar * fogScale, dist * 1.3),
+    }
+  }, [baseConfig, targetDistance, illusionType, normalizeToDistance])
 
   return (
-    <div className="w-full h-[500px] rounded-2xl overflow-hidden relative">
+    <div className={`w-full ${compact ? 'h-[250px] md:h-[350px]' : 'h-[500px]'} rounded-2xl overflow-hidden relative`}>
       <Canvas>
         <CityScene
           config={config}

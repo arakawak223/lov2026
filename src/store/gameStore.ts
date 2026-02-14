@@ -4,8 +4,9 @@ import { STAGE_COUNTRY_MAP, STAGE_PREFECTURE_MAP } from '../data/prefectures'
 
 export type GamePhase = 'title' | 'category' | 'question' | 'input' | 'reveal' | 'result' | 'ranking' | 'collection'
 export type Difficulty = 'easy' | 'normal' | 'hard' | 'expert'
-export type GameCategory = 'fuji' | 'landmark' | 'daily' | 'illusion'
+export type GameCategory = 'fuji' | 'landmark' | 'daily' | 'illusion' | 'visual'
 export type IllusionType = 'perspective' | 'atmospheric' | 'texture' | 'occlusion' | 'size' | 'shadow' | 'vertical'
+export type VisualIllusionType = 'mullerLyer' | 'ebbinghaus' | 'ponzo' | 'jastrow' | 'verticalHorizontal' | 'delboeuf' | 'sander' | 'baldwin'
 
 export interface StageData {
   id: string
@@ -24,6 +25,12 @@ export interface StageData {
   showRuler?: boolean // Show distance ruler (poles + labels) for practice stages
   country?: string
   prefecture?: string | null
+  illusionPairDistance?: number   // Scene B distance for comparison mode
+  illusionPairType?: IllusionType // Scene B illusion type
+  correctChoice?: 'A' | 'B' | 'same' // Which scene has the closer red building / correct answer
+  visualIllusionType?: VisualIllusionType
+  visualExplanation?: string
+  visualParams?: { sizeA: number; sizeB: number; illusionStrength: number; seed: number; illusionFavors: 'A' | 'B' }
 }
 
 export interface GameResult {
@@ -42,8 +49,11 @@ interface GameState {
   phase: GamePhase
   currentCategory: GameCategory | null
   currentStage: StageData | null
+  currentStageNumber: number
+  stageCount: number
   guessedDistance: number
   guessedHeight: number
+  illusionChoice: 'A' | 'B' | 'same' | null
   result: GameResult | null
   totalScore: number
   knownLandmarks: Set<string>
@@ -55,9 +65,11 @@ interface GameState {
   setStage: (stage: StageData) => void
   setGuessedDistance: (distance: number) => void
   setGuessedHeight: (height: number) => void
+  setIllusionChoice: (choice: 'A' | 'B' | 'same') => void
   setPlayerName: (name: string) => void
   submitAnswer: () => void
   nextStage: () => void
+  previousStage: () => void
   skipStage: () => void
   resetGame: () => void
   isHeightKnown: () => boolean
@@ -1158,6 +1170,18 @@ const LANDMARK_STAGES: StageData[] = [
     landmark: 'コルコバードのキリスト像',
     category: 'landmark',
   },
+  {
+    id: 'piazza-san-marco',
+    image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b2/Panorama_Piazza_San_Marco_and_Venice_on_Easter_2013.jpg/1280px-Panorama_Piazza_San_Marco_and_Venice_on_Easter_2013.jpg',
+    question: '奥のサンマルコ大聖堂までの距離は？',
+    targetPosition: { x: 0.5, y: 0.4 },
+    correctDistance: 170,
+    hint: 'サンマルコ広場。大聖堂の高さは約43m',
+    collectionName: 'サンマルコ広場（ヴェネツィア）',
+    difficulty: 'hard',
+    landmark: 'サンマルコ大聖堂',
+    category: 'landmark',
+  },
 ]
 
 // ============================================
@@ -1323,17 +1347,6 @@ const DAILY_STAGES: StageData[] = [
     difficulty: 'hard',
     category: 'daily',
   },
-  {
-    id: 'daily-piazza-san-marco',
-    image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b2/Panorama_Piazza_San_Marco_and_Venice_on_Easter_2013.jpg/1280px-Panorama_Piazza_San_Marco_and_Venice_on_Easter_2013.jpg',
-    question: '奥のサンマルコ大聖堂までの距離は？',
-    targetPosition: { x: 0.5, y: 0.4 },
-    correctDistance: 170,
-    hint: 'サンマルコ広場。大聖堂の高さは約43m',
-    collectionName: 'サンマルコ広場（ヴェネツィア）',
-    difficulty: 'hard',
-    category: 'daily',
-  },
   // --- 商店街・街並み ×5問 ---
   // --- 学校・図書館 ×3問 ---
   {
@@ -1377,7 +1390,7 @@ const DAILY_STAGES: StageData[] = [
 // ============================================
 // カテゴリー4: 錯覚チャレンジ（3D生成シーン）
 // ============================================
-// Helper to generate 50 illusion stages
+// Helper to generate 50 illusion stages (comparison: "which is closer?")
 const ILLUSION_TYPE_NAMES: Record<IllusionType, string> = {
   perspective: '遠近法の罠',
   atmospheric: '大気透視の罠',
@@ -1388,57 +1401,215 @@ const ILLUSION_TYPE_NAMES: Record<IllusionType, string> = {
   vertical: '垂直位置の罠',
 }
 
-const ILLUSION_HINTS: Record<IllusionType, string> = {
-  perspective: '広角レンズ（FOV 120°）は距離を誇張します',
-  atmospheric: '霧の中では物体が実際より遠くに見えます',
-  texture: '地面のテクスチャが粗いと距離感が狂います',
-  occlusion: '手前の建物に隠れた対象は距離を見誤りやすい',
-  size: '周囲の巨大な建物が対象を遠く見せます',
-  shadow: '逆光と影は距離判断を惑わせます',
-  vertical: '傾斜した地面は距離を歪めます',
-}
-
 const ILLUSION_TYPES: IllusionType[] = ['perspective', 'atmospheric', 'texture', 'occlusion', 'size', 'shadow', 'vertical']
 
-// 50 distances spread across 60-400m range, assigned round-robin across 7 types
-const ILLUSION_DISTANCES = [
-  // Stages 1-10 (practice with ruler)
-  80, 100, 120, 150, 180, 200, 250, 300, 160, 90,
-  // Stages 11-50 (real challenge)
-  60, 70, 85, 95, 110, 130, 140, 155, 170, 190,
-  210, 220, 240, 260, 280, 310, 330, 350, 370, 400,
-  75, 105, 125, 145, 175, 195, 215, 235, 265, 290,
-  320, 340, 360, 380, 115, 165, 205, 275, 305, 395,
-]
+// Seeded random for deterministic pair generation
+function illusionSeededRandom(seed: number) {
+  let s = seed
+  return () => {
+    s = (s * 16807 + 0) % 2147483647
+    return (s - 1) / 2147483646
+  }
+}
 
-const ILLUSION_DIFFICULTIES: Difficulty[] = [
-  // 1-10 practice
-  'easy', 'easy', 'easy', 'normal', 'normal', 'normal', 'normal', 'hard', 'normal', 'easy',
-  // 11-50 challenge
-  'normal', 'normal', 'normal', 'normal', 'hard', 'hard', 'hard', 'hard', 'hard', 'hard',
-  'hard', 'hard', 'hard', 'expert', 'expert', 'expert', 'expert', 'expert', 'expert', 'expert',
-  'normal', 'normal', 'hard', 'hard', 'hard', 'hard', 'hard', 'expert', 'expert', 'expert',
-  'expert', 'expert', 'expert', 'expert', 'hard', 'hard', 'hard', 'expert', 'expert', 'expert',
-]
-
-const ILLUSION_STAGES: StageData[] = ILLUSION_DISTANCES.map((dist, i) => {
+// Generate 50 comparison stages.
+// SAME illusion type for both scenes → player compares within identical visual context.
+// Building apparent size is normalized → can't just "look at size"; must use environmental cues.
+// Distance gaps are tight → genuinely hard to tell which is closer.
+const ILLUSION_STAGES: StageData[] = Array.from({ length: 50 }, (_, i) => {
   const stageNum = i + 1
+  const rand = illusionSeededRandom(stageNum * 7919 + 42)
+
+  // Both scenes share the same illusion type (round-robin across 7 types)
   const illusionType = ILLUSION_TYPES[i % ILLUSION_TYPES.length]
-  const showRuler = stageNum <= 10
+
+  // Base distance for scene A: 100-300m
+  const baseDistA = 100 + Math.floor(rand() * 200)
+
+  // Distance gap % — much tighter than before
+  let gapPercent: number
+  let difficulty: Difficulty
+  if (stageNum <= 10) {
+    // Intro: 15-30% gap — noticeable but building sizes are equalized
+    gapPercent = 0.15 + rand() * 0.15
+    difficulty = stageNum <= 5 ? 'easy' : 'normal'
+  } else if (stageNum <= 30) {
+    // Middle: 8-18% gap
+    gapPercent = 0.08 + rand() * 0.10
+    difficulty = stageNum <= 20 ? 'normal' : 'hard'
+  } else {
+    // Hard: 3-10% gap — extremely difficult
+    gapPercent = 0.03 + rand() * 0.07
+    difficulty = stageNum <= 40 ? 'hard' : 'expert'
+  }
+
+  // Scene B distance: offset from A (randomly closer or farther)
+  const offset = Math.round(baseDistA * gapPercent)
+  const distB = rand() > 0.5 ? baseDistA + offset : Math.max(60, baseDistA - offset)
+
+  const correctChoice: 'A' | 'B' = baseDistA <= distB ? 'A' : 'B'
+
+  const closerDist = Math.min(baseDistA, distB)
+  const fartherDist = Math.max(baseDistA, distB)
+  const actualGap = Math.round(((fartherDist - closerDist) / closerDist) * 100)
+
   return {
     id: `illusion-${stageNum}`,
     image: '',
-    question: '赤いビルまでの距離は？',
+    question: '赤いビルが近いのはどっち？',
     targetPosition: { x: 0.5, y: 0.5 },
-    correctDistance: dist,
-    hint: showRuler
-      ? `【練習】ものさし付き！ ${ILLUSION_HINTS[illusionType]}`
-      : ILLUSION_HINTS[illusionType],
-    collectionName: `${ILLUSION_TYPE_NAMES[illusionType]} #${stageNum}`,
-    difficulty: ILLUSION_DIFFICULTIES[i],
+    correctDistance: baseDistA,
+    hint: `${ILLUSION_TYPE_NAMES[illusionType]}（距離差 約${actualGap}%）`,
+    collectionName: `錯覚比較 #${stageNum}`,
+    difficulty,
     category: 'illusion' as GameCategory,
     illusionType,
-    showRuler,
+    showRuler: true,
+    illusionPairDistance: distB,
+    illusionPairType: illusionType, // Same type for both scenes
+    correctChoice,
+  }
+})
+
+// ============================================
+// カテゴリー5: 錯覚クイズ（2D SVG錯視）
+// 設計原則: 錯覚が正解に「逆らう」ように配置する。
+//   例: Aが実際に長い → 錯覚でBが長く見える → プレイヤーは騙される
+// ============================================
+const VISUAL_ILLUSION_TYPES: VisualIllusionType[] = [
+  'mullerLyer', 'ebbinghaus', 'ponzo', 'jastrow',
+  'verticalHorizontal', 'delboeuf', 'sander', 'baldwin',
+]
+
+const VISUAL_ILLUSION_NAMES: Record<VisualIllusionType, string> = {
+  mullerLyer: 'ミュラー・リヤー錯視',
+  ebbinghaus: 'エビングハウス錯視',
+  ponzo: 'ポンゾ錯視',
+  jastrow: 'ヤストロー錯視',
+  verticalHorizontal: '垂直水平錯視',
+  delboeuf: 'デルブーフ錯視',
+  sander: 'サンダー錯視',
+  baldwin: 'ボールドウィン錯視',
+}
+
+const VISUAL_ILLUSION_QUESTIONS: Record<VisualIllusionType, string> = {
+  mullerLyer: 'どちらの線が長い？',
+  ebbinghaus: 'どちらの中心の円が大きい？',
+  ponzo: 'どちらの横線が長い？',
+  jastrow: 'どちらの図形が大きい？',
+  verticalHorizontal: 'どちらの線が長い？',
+  delboeuf: 'どちらの内側の円が大きい？',
+  sander: 'どちらの対角線が長い？',
+  baldwin: 'どちらの線が長い？',
+}
+
+const VISUAL_ILLUSION_EXPLANATIONS: Record<VisualIllusionType, string> = {
+  mullerLyer: '矢羽の向きが線の長さの知覚を変えます。内向き矢羽（>—<）は線を短く、外向き矢羽（<—>）は線を長く見せます。',
+  ebbinghaus: '周囲の円の大きさが中心の円の知覚を変えます。大きな円に囲まれると小さく、小さな円に囲まれると大きく見えます。',
+  ponzo: '収束する線（遠近法）が奥の線をより大きく感じさせ、同じ長さでも長く見せます。',
+  jastrow: '2つの同じ扇形を並べると、短い弧と長い弧が隣接する側で大きさが違って見えます。',
+  verticalHorizontal: '垂直線は水平線より長く見える傾向があります。脳が重力方向の距離を過大評価するためです。',
+  delboeuf: '外側の輪の大きさが内側の円の知覚を変えます。タイトな輪は内円を大きく、広い輪は小さく見せます。',
+  sander: '平行四辺形の大きさが対角線の知覚を歪めます。大きな平行四辺形内の対角線は実際より短く見えます。',
+  baldwin: '両端の正方形の大きさが線の長さの知覚を変えます。大きな正方形に挟まれた線は短く見えます。',
+}
+
+function visualSeededRandom(seed: number) {
+  // xorshift32 — much better distribution than LCG for sequential seeds
+  let s = seed | 0
+  if (s === 0) s = 1
+  return () => {
+    s ^= s << 13
+    s ^= s >> 17
+    s ^= s << 5
+    return (s >>> 0) / 4294967296
+  }
+}
+
+const VISUAL_STAGES: StageData[] = Array.from({ length: 50 }, (_, i) => {
+  const stageNum = i + 1
+  const rand = visualSeededRandom(stageNum * 48271 + stageNum * stageNum * 31 + 9973)
+
+  const illusionType = VISUAL_ILLUSION_TYPES[i % VISUAL_ILLUSION_TYPES.length]
+
+  // --- 難易度設計 ---
+  // サイズ差が小さい ＋ 錯覚が強い ＝ 難しい
+  let difficulty: Difficulty
+  let diffPercent: number  // 実際のサイズ差（%）
+  let sameChance: number   // 「同じ」が正解になる確率
+  let illusionStrength: number // 錯覚の強さ (0-1)
+
+  if (stageNum <= 10) {
+    // Easy: 大きめの差、中程度の錯覚 → 騙されても気づける
+    diffPercent = 0.15 + rand() * 0.10 // 15-25%
+    difficulty = stageNum <= 5 ? 'easy' : 'normal'
+    sameChance = 0.05
+    illusionStrength = 0.4 + rand() * 0.25
+  } else if (stageNum <= 25) {
+    // Normal: 差が縮まり、錯覚が強くなる
+    diffPercent = 0.06 + rand() * 0.08 // 6-14%
+    difficulty = stageNum <= 18 ? 'normal' : 'hard'
+    sameChance = 0.15
+    illusionStrength = 0.55 + rand() * 0.3
+  } else if (stageNum <= 40) {
+    // Hard: 小さな差＋強い錯覚 → かなり騙される
+    diffPercent = 0.03 + rand() * 0.05 // 3-8%
+    difficulty = 'hard'
+    sameChance = 0.25
+    illusionStrength = 0.7 + rand() * 0.25
+  } else {
+    // Expert: 極小差＋最大錯覚 → 見破れたら超人
+    diffPercent = 0.01 + rand() * 0.04 // 1-5%
+    difficulty = 'expert'
+    sameChance = 0.4
+    illusionStrength = 0.85 + rand() * 0.15
+  }
+
+  const isSame = rand() < sameChance
+  let sizeA: number
+  let sizeB: number
+  let correctChoice: 'A' | 'B' | 'same'
+  let illusionFavors: 'A' | 'B'
+
+  if (isSame) {
+    // 同じサイズだが、錯覚で片方が大きく見える
+    const baseSize = 90 + Math.floor(rand() * 30) // 90-120
+    sizeA = baseSize
+    sizeB = baseSize
+    correctChoice = 'same'
+    illusionFavors = rand() > 0.5 ? 'A' : 'B' // 錯覚でどちらが大きく見えるか
+  } else {
+    const baseSize = 90 + Math.floor(rand() * 30)
+    const offset = Math.max(2, Math.round(baseSize * diffPercent))
+    if (rand() > 0.5) {
+      sizeA = baseSize + offset
+      sizeB = baseSize
+      correctChoice = 'A'
+      illusionFavors = 'B' // Aが正解 → 錯覚はBを大きく見せる（騙す）
+    } else {
+      sizeA = baseSize
+      sizeB = baseSize + offset
+      correctChoice = 'B'
+      illusionFavors = 'A' // Bが正解 → 錯覚はAを大きく見せる（騙す）
+    }
+  }
+
+  const seed = stageNum * 3571 + 89
+
+  return {
+    id: `visual-${stageNum}`,
+    image: '',
+    question: VISUAL_ILLUSION_QUESTIONS[illusionType],
+    targetPosition: { x: 0.5, y: 0.5 },
+    correctDistance: sizeA,
+    hint: `${VISUAL_ILLUSION_NAMES[illusionType]}`,
+    collectionName: `${VISUAL_ILLUSION_NAMES[illusionType]} #${Math.ceil(stageNum / VISUAL_ILLUSION_TYPES.length)}`,
+    difficulty,
+    category: 'visual' as GameCategory,
+    correctChoice,
+    visualIllusionType: illusionType,
+    visualExplanation: VISUAL_ILLUSION_EXPLANATIONS[illusionType],
+    visualParams: { sizeA, sizeB, illusionStrength, seed, illusionFavors },
   }
 })
 
@@ -1448,6 +1619,7 @@ const DEMO_STAGES: StageData[] = [
   ...LANDMARK_STAGES,
   ...DAILY_STAGES,
   ...ILLUSION_STAGES,
+  ...VISUAL_STAGES,
 ]
 
 function calculateResult(
@@ -1511,8 +1683,11 @@ export const useGameStore = create<GameState>((set, get) => ({
   phase: 'title',
   currentCategory: null,
   currentStage: null,
+  currentStageNumber: 0,
+  stageCount: 0,
   guessedDistance: 50,
   guessedHeight: 10,
+  illusionChoice: null,
   result: null,
   totalScore: 0,
   knownLandmarks: new Set<string>(),
@@ -1532,9 +1707,12 @@ export const useGameStore = create<GameState>((set, get) => ({
     set({
       currentCategory: category,
       currentStage: stages[0] || null,
+      currentStageNumber: 1,
+      stageCount: stages.length,
       phase: 'input',
       guessedDistance: 50,
       guessedHeight: 10,
+      illusionChoice: null,
       result: null,
       totalScore: 0,
     })
@@ -1544,12 +1722,15 @@ export const useGameStore = create<GameState>((set, get) => ({
     currentStage: stage,
     guessedDistance: 50,
     guessedHeight: 10,
+    illusionChoice: null,
     result: null,
   }),
 
   setGuessedDistance: (distance) => set({ guessedDistance: distance }),
 
   setGuessedHeight: (height) => set({ guessedHeight: height }),
+
+  setIllusionChoice: (choice) => set({ illusionChoice: choice }),
 
   isHeightKnown: () => {
     const { currentStage, knownLandmarks } = get()
@@ -1558,8 +1739,74 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   submitAnswer: () => {
-    const { currentStage, guessedDistance, guessedHeight, knownLandmarks, isHeightKnown, playerName } = get()
+    const { currentStage, guessedDistance, guessedHeight, illusionChoice, knownLandmarks, isHeightKnown, playerName } = get()
     if (!currentStage) return
+
+    // Visual illusion quiz: correct/incorrect binary scoring
+    if (currentStage.category === 'visual' && currentStage.correctChoice && illusionChoice) {
+      const isCorrect = illusionChoice === currentStage.correctChoice
+      const result: GameResult = {
+        guessedDistance: 0,
+        correctDistance: 0,
+        distanceError: isCorrect ? 0 : 100,
+        score: isCorrect ? 100 : 0,
+        title: isCorrect ? '正解！' : '不正解...',
+        titleEmoji: isCorrect ? '🎉' : '😵',
+      }
+
+      const { playedStages } = get()
+      const prev = playedStages[currentStage.id] ?? -1
+      if (result.score > prev) {
+        const updated = { ...playedStages, [currentStage.id]: result.score }
+        localStorage.setItem('playedStages', JSON.stringify(updated))
+        set((state) => ({
+          result,
+          phase: 'reveal',
+          totalScore: state.totalScore + result.score,
+          playedStages: updated,
+        }))
+      } else {
+        set((state) => ({
+          result,
+          phase: 'reveal',
+          totalScore: state.totalScore + result.score,
+        }))
+      }
+      return
+    }
+
+    // Illusion comparison mode: correct/incorrect binary scoring
+    if (currentStage.category === 'illusion' && currentStage.correctChoice && illusionChoice) {
+      const isCorrect = illusionChoice === currentStage.correctChoice
+      const result: GameResult = {
+        guessedDistance: illusionChoice === 'A' ? currentStage.correctDistance : (currentStage.illusionPairDistance ?? 0),
+        correctDistance: currentStage.correctChoice === 'A' ? currentStage.correctDistance : (currentStage.illusionPairDistance ?? 0),
+        distanceError: isCorrect ? 0 : 100,
+        score: isCorrect ? 100 : 0,
+        title: isCorrect ? '正解！' : '不正解...',
+        titleEmoji: isCorrect ? '🎉' : '😵',
+      }
+
+      const { playedStages } = get()
+      const prev = playedStages[currentStage.id] ?? -1
+      if (result.score > prev) {
+        const updated = { ...playedStages, [currentStage.id]: result.score }
+        localStorage.setItem('playedStages', JSON.stringify(updated))
+        set((state) => ({
+          result,
+          phase: 'reveal',
+          totalScore: state.totalScore + result.score,
+          playedStages: updated,
+        }))
+      } else {
+        set((state) => ({
+          result,
+          phase: 'reveal',
+          totalScore: state.totalScore + result.score,
+        }))
+      }
+      return
+    }
 
     const heightKnown = isHeightKnown()
     const effectiveGuessedHeight = heightKnown ? currentStage.correctHeight : guessedHeight
@@ -1622,9 +1869,29 @@ export const useGameStore = create<GameState>((set, get) => ({
     currentStageIndex = (currentStageIndex + 1) % stages.length
     set({
       currentStage: stages[currentStageIndex],
+      currentStageNumber: currentStageIndex + 1,
       phase: 'input',
       guessedDistance: 50,
       guessedHeight: 10,
+      illusionChoice: null,
+      result: null,
+    })
+  },
+
+  previousStage: () => {
+    if (currentStageIndex <= 0) return
+    const { currentCategory } = get()
+    const stages = currentCategory
+      ? DEMO_STAGES.filter(s => s.category === currentCategory)
+      : DEMO_STAGES
+    currentStageIndex = currentStageIndex - 1
+    set({
+      currentStage: stages[currentStageIndex],
+      currentStageNumber: currentStageIndex + 1,
+      phase: 'input',
+      guessedDistance: 50,
+      guessedHeight: 10,
+      illusionChoice: null,
       result: null,
     })
   },
@@ -1637,9 +1904,11 @@ export const useGameStore = create<GameState>((set, get) => ({
     currentStageIndex = (currentStageIndex + 1) % stages.length
     set({
       currentStage: stages[currentStageIndex],
+      currentStageNumber: currentStageIndex + 1,
       phase: 'input',
       guessedDistance: 50,
       guessedHeight: 10,
+      illusionChoice: null,
       result: null,
     })
   },
@@ -1650,8 +1919,11 @@ export const useGameStore = create<GameState>((set, get) => ({
       phase: 'title',
       currentCategory: null,
       currentStage: null,
+      currentStageNumber: 0,
+      stageCount: 0,
       guessedDistance: 50,
       guessedHeight: 10,
+      illusionChoice: null,
       result: null,
       totalScore: 0,
       knownLandmarks: new Set<string>(),
@@ -1659,7 +1931,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 }))
 
-export { DEMO_STAGES, FUJI_STAGES, LANDMARK_STAGES, DAILY_STAGES, ILLUSION_STAGES }
+export { DEMO_STAGES, FUJI_STAGES, LANDMARK_STAGES, DAILY_STAGES, ILLUSION_STAGES, VISUAL_STAGES, VISUAL_ILLUSION_NAMES }
 
 export const getStagesByCategory = (category: GameCategory): StageData[] => {
   return DEMO_STAGES.filter(stage => stage.category === category)
@@ -1705,9 +1977,16 @@ export const CATEGORY_INFO = {
   illusion: {
     id: 'illusion',
     name: '錯覚チャレンジ',
-    description: '3D都市で視覚の錯覚に挑め（60〜400m・全50問）',
+    description: '2つのシーンを見比べて近い方を当てよう（全50問）',
     icon: '🌀',
     stageCount: ILLUSION_STAGES.length,
+  },
+  visual: {
+    id: 'visual',
+    name: '錯覚クイズ',
+    description: '有名な錯視を見破れるか？（全50問）',
+    icon: '🔮',
+    stageCount: VISUAL_STAGES.length,
   },
 } as const
 
