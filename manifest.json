@@ -1,0 +1,25 @@
+{
+  "name": "視覚の限界 - Eye Measure",
+  "short_name": "Eye Measure",
+  "description": "あなたの感覚と頭脳で距離を当ててみよう",
+  "start_url": "/lov2026/",
+  "scope": "/lov2026/",
+  "display": "standalone",
+  "background_color": "#111827",
+  "theme_color": "#312e81",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
