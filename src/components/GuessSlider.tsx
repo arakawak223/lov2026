@@ -127,9 +127,9 @@ export default function GuessSlider({
       steps.push({ delta: -100000, label: '100km' }, { delta: -10000, label: '10km' })
     }
     if (absVal >= 100) {
-      steps.push({ delta: -1000, label: '1km' }, { delta: -100, label: '100' })
+      steps.push({ delta: -1000, label: '1km' }, { delta: -100, label: '100m' })
     }
-    steps.push({ delta: -10, label: '10' }, { delta: -1, label: '1' })
+    steps.push({ delta: -10, label: '10m' }, { delta: -1, label: '1m' })
 
     return steps
   }
